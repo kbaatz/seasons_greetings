@@ -8,6 +8,7 @@ function _init()
 	--state machine 
 	--helpful for changing scenes too
 	scene="menu"
+	music(0)
 
 	pal(0, 12, 1)
 	pl={
@@ -37,6 +38,20 @@ function _init()
 	sparkle=false -- in dev
 	ducks = 0
 
+	--pop up mene
+	menu_open=false
+	menu_choice=1
+	music_on=true
+	
+	--saving code 
+	cartdata("duck_game")
+
+	-- load saved duck count
+	ducks=dget(0)
+	
+	--credits 
+	credits_y=140
+
 end
 
 
@@ -44,16 +59,28 @@ end
 -->8
 --game
 function update_game()
-	player_update()
-	player_animate()
-	
-	
+
+	if menu_open then
+		-- menu already open
+		update_pop_menu()
+
+	else
+		-- normal game
+		player_update()
+		player_animate()
+
+		-- z opens menu
+		if btnp(🅾️) then
+			menu_open=true
+		end
+	end
 end
 
 --draw stuff
 function draw_game()
 	camera(128*screen,0)
 	cls(col[screen+1])
+	
 	map(0,16,0x8)
 	map(0,0)
 	
@@ -65,6 +92,12 @@ function draw_game()
 	    pl.h/8,
 	
 	    pl.flp)
+	    
+ draw_ui()
+ 
+ if menu_open then
+		draw_pop_menu()
+	end
 
 end
 
@@ -148,6 +181,8 @@ function player_update()
 	and pl.landed then
 		pl.dy-=pl.jmp
 		pl.landed=false
+		
+		sfx(4) 
 	end
 	
 	--check col on up and down
@@ -225,15 +260,7 @@ function player_update()
 		mset(x,y,0)
 		--sparkle=true
 	end
-	
-	if collide_map(pl,"right",6) 
-	or collide_map(pl,"left",6) then
-		ducks+=1
-		x=pl.x/8
-		y=pl.y/8
-		mset(x,y,0)
-	end
-	
+
 	--slippery tile
 	if collide_map(pl,"down",5) then
 		friction=0.99
@@ -243,6 +270,8 @@ function player_update()
 	
 	pl.x+=pl.dx
 	pl.y+=pl.dy
+	
+	collect_duck()
 
 end
 
@@ -277,6 +306,31 @@ end
 function limit_speed(num, maximum)
 	return mid(-maximum, num, maximum)
 end
+
+--duck collecting
+	function collect_duck()
+		-- find the map tiles the player overlaps
+		local x1=flr(pl.x/8)
+		local x2=flr((pl.x+pl.w-1)/8)
+	
+		local y1=flr(pl.y/8)
+		local y2=flr((pl.y+pl.h-1)/8)
+	
+		-- check each overlapping tile
+		for x=x1,x2 do
+			for y=y1,y2 do
+	
+				-- if this tile has duck flag 6
+				if fget(mget(x,y),6) then
+	
+					ducks+=1      
+					mset(x,y,0) 
+					sfx(5)
+	
+				end
+			end
+		end
+	end
 -->8
 -- ★ main menu ★
 --for star feild 
@@ -285,7 +339,7 @@ for i = 1, 30 do
 	add(stars, {
 			x = flr(rnd(128)),
 			y = flr(rnd(128)),
-			speed = rnd(1.5) + 0.3
+			speed = rnd(1.0) + 0.3
 			})
 end 
 
@@ -326,16 +380,20 @@ function _update()
 
 	if scene == "menu" then 
 			update_menu()
+	elseif scene=="credits" then
+		update_credits()
 	else 
 			update_game()
 	end
-	
+
 end
 
 function _draw()
 
 	if scene == "menu" then 
 			draw_menu()
+	elseif scene=="credits" then
+		draw_credits()
 	else 
 			draw_game()
 	end
@@ -365,6 +423,154 @@ function draw_parts(parts)
 	for p in all(parts) do
 		circfill(p.px,p.py,p.r,p.pc)
 	end
+end
+-->8
+--ui 
+
+function draw_ui()
+	camera(0,0)
+	
+	rectfill(103,1,127,11,1)
+	--count the ducks 
+	print(ducks, 116,4,7)
+	--lil duck icon 
+	spr(20,106,1)
+	
+end 
+
+--pop up menu
+
+function update_pop_menu()
+
+	if btnp(⬆️) then
+		menu_choice-=1
+	end
+
+	if btnp(⬇️) then
+		menu_choice+=1
+	end
+
+	menu_choice=mid(1,menu_choice,3)
+
+	-- select option
+	if btnp(❎) then
+
+		-- save and quit
+		if menu_choice==1 then
+			dset(0,ducks)
+			scene="menu"
+			menu_open=false
+
+		-- music on/off
+		elseif menu_choice==2 then
+			music_on=not music_on
+
+			if music_on then
+				music(0)
+			else
+				music(-1)
+			end
+
+		-- credits
+		elseif menu_choice==3 then
+			scene="credits"
+			menu_open=false
+			credits_y=140
+		end
+	end
+
+	-- close menu
+	if btnp(🅾️) then
+		menu_open=false
+	end
+	
+end
+
+function draw_pop_menu()
+
+	-- ui should ignore game camera
+	camera(0,0)
+
+	-- menu background
+	rectfill(25,30,103,96,1)
+	rect(25,30,103,96,7)
+
+	print("pause",54,37,7)
+
+	-- option 1
+	if menu_choice==1 then
+		print(">",34,52,10)
+	end
+	print("save & quit",42,52,7)
+
+	-- option 2
+	if menu_choice==2 then
+		print(">",34,64,10)
+	end
+
+	if music_on then
+		print("music: on",42,64,7)
+	else
+		print("music: off",42,64,7)
+	end
+
+	-- option 3
+	if menu_choice==3 then
+		print(">",34,76,10)
+	end
+	print("credits",42,76,7)
+
+end
+
+-->8
+-- credits
+function update_credits()
+	cls(1)
+	draw_starfield()
+	credits_y-=0.5
+
+	-- go back
+	if btnp(🅾️) then
+		scene="game"
+		menu_open=true
+	end
+
+end 
+
+function draw_credits()
+	camera(0,0)
+	cls(1)
+
+	draw_starfield()
+	-- title
+	centre_text("credits",credits_y,7)
+
+	-- names
+	centre_text("game by",credits_y+20,7)
+	centre_text("ksenia, lucas and gemma",credits_y+28,7)
+
+	centre_text("code by",credits_y+43,6)
+	centre_text("ksenia, lucas and gemma",credits_y+51,6)
+	centre_text("(and many youtube videos)",credits_y+59,6)
+
+	centre_text("art by ksenia",credits_y+74,6)
+	centre_text("title by gemma",credits_y+82,6)
+
+	centre_text("music by gemma",credits_y+97,6)
+
+	-- thank you
+	centre_text("thanks for playing!",credits_y+117,7)
+
+	-- duck
+	spr(20,60,credits_y+135)
+	
+	rectfill(20,116,108,127,1)
+	centre_text("press z to go back",120,7)
+end
+
+function centre_text(txt,y,col)
+	local x=64-(#txt*2)
+	print(txt,x,y,col)
 end
 __gfx__
 cccccccc000077000000770000007700bb0077000000770000007700000007700b00770000000000000000000000000000000000000000000000000000000000
@@ -528,3 +734,16 @@ __map__
 000000000000000000000000000000004e0000000000004e4c4f0000005e007d6c000000007a7b00006c007a790000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000000000000000000000000000000005e0000000000004e6f7f0000004e00007c5c000000007900007c00007b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000000000000000000000000000000004e0000000000004e00000000004e00007c00000000007900006c0000790000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__sfx__
+000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001e0000180501c0501f050180501a0501d0501f0501d050180501c0501d0501f050180501c0501f05018050180501c0501d0501f05028050240502305021050180501c0501f0501a0501d050210501805018050
+001e012110050000000000000000130500000000000000000c050000000000000000100500000000000000000c050000000000000000130500000000000000000c0500000000000000000e050000000000000000
+001e000000000000000000000000000000000000000000000000000000000000000000000180501c0301a020000000000000000000000000000000000000000000000000000000000000000000c0501003013020
+000300000b120101201512019130211302a1303d1303f1001b10020100281003f1000010000100001000010000100001000010000100001000010000100001000010000100001000010000100001000010000100
+001000003d7503a7503d7503a7503f7503f7500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+__music__
+00 02034344
+01 01020344
+01 01020344
+02 41020344
+
